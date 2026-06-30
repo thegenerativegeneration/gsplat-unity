@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added an `OpacityPruneThreshold` option to `GsplatImporter`. Splats with opacity below this threshold are culled at import time. Currently only supported for `.ply` import. `LoadFromPly` / `LoadFromPlyBytes` take an optional `opacityPruneThreshold` parameter, so runtime byte-array loading can prune as well. ([#36](https://github.com/wuyize25/gsplat-unity/pull/36) by [@TakashiYoshinaga](https://github.com/TakashiYoshinaga))
 
+- Added support for PlayCanvas SOG v2 ZIP bundle imports (`.sog`) in both Spark and Uncompressed compression modes. SOG import decodes `meta.json` plus lossless WebP property images through `unity.webp`/libwebp into the existing `GsplatAsset` runtime representations and supports SOG SH bands 0-3. The same SOG loader can be used at runtime on supported platforms including Android.
+
 ### Fixed
 
 - Fixed PLY header parsing to count only vertex element properties. The package now supports PLY files exported by Apple's [ml-sharp](https://github.com/apple/ml-sharp). ([#33](https://github.com/wuyize25/gsplat-unity/pull/33) by [@TakashiYoshinaga](https://github.com/TakashiYoshinaga))

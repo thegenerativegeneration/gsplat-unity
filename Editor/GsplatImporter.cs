@@ -10,7 +10,7 @@ using UnityEngine;
 
 namespace Gsplat.Editor
 {
-    [ScriptedImporter(1, new[] { "ply", "spz" })]
+    [ScriptedImporter(1, new[] { "ply", "spz", "sog" })]
     public class GsplatImporter : ScriptedImporter
     {
         public CompressionMode Compression = CompressionMode.Spark;
@@ -31,15 +31,20 @@ namespace Gsplat.Editor
 
         public override void OnImportAsset(AssetImportContext ctx)
         {
-            bool isSpz = ctx.assetPath.EndsWith(".spz", StringComparison.OrdinalIgnoreCase);
+            bool isSpz = IsSpz(ctx.assetPath);
+            bool isSog = IsSog(ctx.assetPath);
             GsplatAsset gsplatAsset = Compression switch
             {
-                CompressionMode.Uncompressed => isSpz
-                    ? ScriptableObject.CreateInstance<GsplatAssetSpzUncompressed>()
-                    : ScriptableObject.CreateInstance<GsplatAssetUncompressed>(),
-                CompressionMode.Spark => isSpz
-                    ? ScriptableObject.CreateInstance<GsplatAssetSpz>()
-                    : ScriptableObject.CreateInstance<GsplatAssetSpark>(),
+                CompressionMode.Uncompressed => isSog
+                    ? ScriptableObject.CreateInstance<GsplatAssetSogUncompressed>()
+                    : isSpz
+                        ? ScriptableObject.CreateInstance<GsplatAssetSpzUncompressed>()
+                        : ScriptableObject.CreateInstance<GsplatAssetUncompressed>(),
+                CompressionMode.Spark => isSog
+                    ? ScriptableObject.CreateInstance<GsplatAssetSog>()
+                    : isSpz
+                        ? ScriptableObject.CreateInstance<GsplatAssetSpz>()
+                        : ScriptableObject.CreateInstance<GsplatAssetSpark>(),
                 _ => throw new ArgumentOutOfRangeException()
             };
 
@@ -48,7 +53,7 @@ namespace Gsplat.Editor
 #else
             Stopwatch swTotal = null;
 #endif
-            SpzPhaseTimings spzTimings = default;
+            SpzPhaseTimings importTimings = default;
             try
             {
                 ProgressCallback progress = (info, p) => EditorUtility.DisplayProgressBar(
@@ -60,17 +65,37 @@ namespace Gsplat.Editor
 
                 if (gsplatAsset is GsplatAssetSpzUncompressed spzUncompressedAsset)
                 {
-                    spzTimings = spzUncompressedAsset.LoadFromSpz(ctx.assetPath, SourceCoordinates, progress);
+                    importTimings = spzUncompressedAsset.LoadFromSpz(ctx.assetPath, SourceCoordinates, progress);
                 }
                 else if (gsplatAsset is GsplatAssetSpz spzAsset)
                 {
                     string cachePath = GetCachePath(ctx.assetPath, Compression, SourceCoordinates, OpacityPruneThreshold);
                     if (!spzAsset.TryLoadFromCache(cachePath))
                     {
-                        spzTimings = spzAsset.LoadFromSpz(ctx.assetPath, SourceCoordinates, progress);
+                        importTimings = spzAsset.LoadFromSpz(ctx.assetPath, SourceCoordinates, progress);
                         try
                         {
                             spzAsset.SaveToCache(cachePath);
+                        }
+                        catch (Exception e)
+                        {
+                            UnityEngine.Debug.LogWarning($"[Gsplat Import] Cache write failed: {e.Message}");
+                        }
+                    }
+                }
+                else if (gsplatAsset is GsplatAssetSogUncompressed sogUncompressedAsset)
+                {
+                    importTimings = sogUncompressedAsset.LoadFromSog(ctx.assetPath, SourceCoordinates, progress);
+                }
+                else if (gsplatAsset is GsplatAssetSog sogAsset)
+                {
+                    string cachePath = GetSogCachePath(ctx.assetPath, Compression, SourceCoordinates, SogImageDecoder.DecoderVersion);
+                    if (!sogAsset.TryLoadFromCache(cachePath))
+                    {
+                        importTimings = sogAsset.LoadFromSog(ctx.assetPath, SourceCoordinates, progress);
+                        try
+                        {
+                            sogAsset.SaveToCache(cachePath);
                         }
                         catch (Exception e)
                         {
@@ -112,7 +137,7 @@ namespace Gsplat.Editor
             ctx.SetMainObject(gsplatAsset);
 
 #if GSPLAT_VERBOSE_IMPORT_LOGGING
-            LogImportStats(ctx.assetPath, gsplatAsset, isSpz, spzTimings, swTotal!.ElapsedMilliseconds);
+            LogImportStats(ctx.assetPath, gsplatAsset, isSpz || isSog, importTimings, swTotal!.ElapsedMilliseconds);
 #endif
         }
 
@@ -129,6 +154,20 @@ namespace Gsplat.Editor
             key = string.Join("_", key.Split(Path.GetInvalidFileNameChars()));
             return Path.Combine("Library", "GsplatCache", key + ".bin");
         }
+
+        static string GetSogCachePath(string assetPath, CompressionMode compression, SourceCoordinates sourceCoordinates,
+            string decoderVersion)
+        {
+            var fi = new FileInfo(assetPath);
+            string stem = Path.GetFileNameWithoutExtension(assetPath);
+            string ext = Path.GetExtension(assetPath).TrimStart('.').ToLowerInvariant();
+            string key = $"{stem}_{ext}_{fi.Length}_{fi.LastWriteTimeUtc.Ticks}_{compression}_{sourceCoordinates}_{decoderVersion}";
+            key = string.Join("_", key.Split(Path.GetInvalidFileNameChars()));
+            return Path.Combine("Library", "GsplatCache", key + ".bin");
+        }
+
+        static bool IsSpz(string path) => path.EndsWith(".spz", StringComparison.OrdinalIgnoreCase);
+        static bool IsSog(string path) => path.EndsWith(".sog", StringComparison.OrdinalIgnoreCase);
 
         static void LogImportStats(string assetPath, GsplatAsset asset, bool isSpz,
             SpzPhaseTimings spzTimings, long totalMs)
@@ -157,7 +196,8 @@ namespace Gsplat.Editor
             var reimported = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var p in importedAssets)
                 if (p.EndsWith(".ply", StringComparison.OrdinalIgnoreCase) ||
-                    p.EndsWith(".spz", StringComparison.OrdinalIgnoreCase))
+                    p.EndsWith(".spz", StringComparison.OrdinalIgnoreCase) ||
+                    p.EndsWith(".sog", StringComparison.OrdinalIgnoreCase))
                     reimported.Add(p);
 
             if (reimported.Count == 0) return;

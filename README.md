@@ -22,6 +22,8 @@ Most 3DGS assets are trained in Gamma space, following the official implementati
 
 - Supports SPZ versions 1-4 with SH degrees 0-4
 
+- Supports PlayCanvas SOG v2 ZIP bundles with SH bands 0-3
+
 - Supports orthographic projection
 
 - Compatible with MSAA
@@ -63,9 +65,13 @@ The next steps depend on the Render Pipeline you are using:
 
 ### Import Assets
 
-Copy or drag & drop the PLY/SPZ file anywhere into your project's `Assets` folder. The package will then automatically read the file and import it as a derived class of `Gsplat Asset`. The package supports two compression modes for the asset: `Uncompressed` and `Spark` (packed). The default mode is `Spark`, which is inspired by [spark.js](https://github.com/sparkjsdev/spark). You can change the compression mode in the inspector of the imported `Gsplat Asset`.
+Copy or drag & drop a PLY, SPZ, or SOG file anywhere into your project's `Assets` folder. The package will then automatically read the file and import it as a derived class of `Gsplat Asset`. The package supports two compression modes for the asset: `Uncompressed` and `Spark` (packed). The default mode is `Spark`, which is inspired by [spark.js](https://github.com/sparkjsdev/spark). You can change the compression mode in the inspector of the imported `Gsplat Asset`.
 
 The `Opacity Prune Threshold` import option removes splats whose opacity (after sigmoid) is below the threshold at import time. Since overdraw of many overlapping translucent splats is the main rendering cost of Gaussian Splatting, pruning nearly transparent splats can significantly improve frame rate, and also reduces memory usage and load time. Set the slider in the inspector of the imported asset and press `Apply` to reimport; the Console then logs how many splats were pruned (e.g. `[Gsplat Import] scene.ply: pruned N / M splats (x.x%)`). Start around `0.01`–`0.05` and increase while checking the visual result (thin fog-like details disappear first — as a reference, a threshold of `0.05` removed about 40% of the splats on one of our scans with little visible change). Setting it back to `0` and reimporting fully restores the original data. Currently only supported for `.ply` import.
+
+SOG import supports PlayCanvas SOG version 2 bundled `.sog` ZIP files containing `meta.json` and lossless WebP property images. Directory-style SOG datasets are not imported directly. SOG WebP decoding uses [`unity.webp`](https://github.com/netpyoung/unity.webp)'s native libwebp bindings, so the same decoder path is available for editor import and runtime loading on supported platforms including Android.
+
+For runtime SOG loading, create a `GsplatAssetSog` or `GsplatAssetSogUncompressed` instance and call `LoadFromSog`, then assign it to a `GsplatRenderer`. Runtime SOG loading performs ZIP, JSON, WebP decode, and splat packing on-device; after loading, rendering uses the same Spark or Uncompressed pipeline as imported assets.
 
 ### Add Gsplat Renderer
 

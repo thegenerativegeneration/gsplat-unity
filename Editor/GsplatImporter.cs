@@ -24,15 +24,19 @@ namespace Gsplat.Editor
         [Tooltip("The coordinate frame the source asset was authored in.\n\n" +
                  "Positions, rotations, and SH coefficients are converted to Unity (RUF) at import time.\n\n" +
                  "RUB  — standard output of 3DGS training tools, gsplat, nerfstudio, and Niantic SPZ.\n" +
+                 "RDB  — PlayCanvas SOG.\n" +
                  "RDF  — OpenCV, COLMAP camera convention.\n" +
                  "LUF  — GLB, glTF.\n" +
                  "RUF  — already in Unity space; no conversion applied.")]
-        public SourceCoordinates SourceCoordinates = SourceCoordinates.RUB;
+        public SourceCoordinates SourceCoordinates = SourceCoordinates.Unspecified;
 
         public override void OnImportAsset(AssetImportContext ctx)
         {
             bool isSpz = IsSpz(ctx.assetPath);
             bool isSog = IsSog(ctx.assetPath);
+            SourceCoordinates sourceCoordinates = SourceCoordinates == SourceCoordinates.Unspecified
+                ? isSog ? SourceCoordinates.RDB : SourceCoordinates.RUB
+                : SourceCoordinates;
             GsplatAsset gsplatAsset = Compression switch
             {
                 CompressionMode.Uncompressed => isSog
@@ -65,14 +69,14 @@ namespace Gsplat.Editor
 
                 if (gsplatAsset is GsplatAssetSpzUncompressed spzUncompressedAsset)
                 {
-                    importTimings = spzUncompressedAsset.LoadFromSpz(ctx.assetPath, SourceCoordinates, progress);
+                    importTimings = spzUncompressedAsset.LoadFromSpz(ctx.assetPath, sourceCoordinates, progress);
                 }
                 else if (gsplatAsset is GsplatAssetSpz spzAsset)
                 {
-                    string cachePath = GetCachePath(ctx.assetPath, Compression, SourceCoordinates, OpacityPruneThreshold);
+                    string cachePath = GetCachePath(ctx.assetPath, Compression, sourceCoordinates, OpacityPruneThreshold);
                     if (!spzAsset.TryLoadFromCache(cachePath))
                     {
-                        importTimings = spzAsset.LoadFromSpz(ctx.assetPath, SourceCoordinates, progress);
+                        importTimings = spzAsset.LoadFromSpz(ctx.assetPath, sourceCoordinates, progress);
                         try
                         {
                             spzAsset.SaveToCache(cachePath);
@@ -85,14 +89,15 @@ namespace Gsplat.Editor
                 }
                 else if (gsplatAsset is GsplatAssetSogUncompressed sogUncompressedAsset)
                 {
-                    importTimings = sogUncompressedAsset.LoadFromSog(ctx.assetPath, SourceCoordinates, progress);
+                    importTimings = sogUncompressedAsset.LoadFromSog(ctx.assetPath, sourceCoordinates, progress);
                 }
                 else if (gsplatAsset is GsplatAssetSog sogAsset)
                 {
-                    string cachePath = GetSogCachePath(ctx.assetPath, Compression, SourceCoordinates, SogImageDecoder.DecoderVersion);
+                    string cachePath = GetSogCachePath(ctx.assetPath, Compression, sourceCoordinates,
+                        SogImageDecoder.DecoderVersion);
                     if (!sogAsset.TryLoadFromCache(cachePath))
                     {
-                        importTimings = sogAsset.LoadFromSog(ctx.assetPath, SourceCoordinates, progress);
+                        importTimings = sogAsset.LoadFromSog(ctx.assetPath, sourceCoordinates, progress);
                         try
                         {
                             sogAsset.SaveToCache(cachePath);
@@ -105,7 +110,7 @@ namespace Gsplat.Editor
                 }
                 else
                 {
-                    gsplatAsset.LoadFromPly(ctx.assetPath, progress, SourceCoordinates, OpacityPruneThreshold);
+                    gsplatAsset.LoadFromPly(ctx.assetPath, progress, sourceCoordinates, OpacityPruneThreshold);
                 }
             }
             catch (Exception e)

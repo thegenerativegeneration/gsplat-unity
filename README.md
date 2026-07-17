@@ -47,6 +47,18 @@ The sorting pass, built upon [b0nes164/GPUSorting](https://github.com/b0nes164/G
 
 ### Install
 
+SOG support depends on `com.netpyoung.webp`, which is distributed through OpenUPM. Before installing Gsplat, add the following scoped registry to your project's `Packages/manifest.json`:
+
+```json
+"scopedRegistries": [
+  {
+    "name": "OpenUPM",
+    "url": "https://package.openupm.com",
+    "scopes": ["com.netpyoung.webp"]
+  }
+]
+```
+
 After cloning or downloading this repository, open your Unity project (or create a new one). Navigate to `Window > Package Manager`, click the `+` button, select `Install package from disk...`, and then choose the `package.json` file from this repository.
 
 ### Setup

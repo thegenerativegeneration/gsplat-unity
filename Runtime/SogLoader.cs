@@ -298,23 +298,26 @@ namespace Gsplat
             if (largest < 0 || largest > 3)
                 throw new InvalidDataException($"SOG: quats.webp pixel {i} has invalid alpha {p.a}; expected 252..255.");
 
-            var q = new float[4];
-            var encoded = new[] { p.r, p.g, p.b };
-            int encodedIndex = 0;
-            float sumSq = 0f;
-            for (int component = 0; component < 4; component++)
-            {
-                if (component == largest)
-                    continue;
+            float r = DecodeRotationComponent(p.r);
+            float g = DecodeRotationComponent(p.g);
+            float b = DecodeRotationComponent(p.b);
+            float missing = Mathf.Sqrt(Mathf.Max(0f, 1f - r * r - g * g - b * b));
 
-                float value = ((encoded[encodedIndex++] / 255.0f) * 2.0f - 1.0f) * Sqrt1_2;
-                q[component] = value;
-                sumSq += value * value;
+            float q0, q1, q2, q3;
+            switch (largest)
+            {
+                case 0: (q0, q1, q2, q3) = (missing, r, g, b); break;
+                case 1: (q0, q1, q2, q3) = (r, missing, g, b); break;
+                case 2: (q0, q1, q2, q3) = (r, g, missing, b); break;
+                case 3: (q0, q1, q2, q3) = (r, g, b, missing); break;
+                default: throw new InvalidOperationException();
             }
 
-            q[largest] = Mathf.Sqrt(Mathf.Max(0f, 1f - sumSq));
-            return new Quaternion(q[1], q[2], q[3], q[0]).normalized;
+            return new Quaternion(q1, q2, q3, q0).normalized;
         }
+
+        static float DecodeRotationComponent(byte value) =>
+            ((value / 255.0f) * 2.0f - 1.0f) * Sqrt1_2;
 
         public static void DecodeShBand(SogData data, int i, int band, float[] output)
         {

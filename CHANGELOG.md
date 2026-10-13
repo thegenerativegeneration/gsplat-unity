@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added a mesh generation pipeline for `.ply` splat files, including filtering, voxel marching cubes, simplification, and output export. The `Gsplat Mesh Generator` GUI tool  can be accesed from the import menu, the tools menu (`Tools > Gsplat > Mesh Generator`), or by right-clicking a `.ply` file. The generated mesh is saved to the `GeneratedMeshes` folder as `{{ply name}}_Mesh`. ([#43](https://github.com/wuyize25/gsplat-unity/pull/43) by [@amheuer](https://github.com/amheuer))
 
+- Added support for PlayCanvas SOG v2 ZIP bundle imports (`.sog`) in both Spark and Uncompressed compression modes. SOG import decodes `meta.json` plus lossless WebP property images through `unity.webp`/libwebp into the existing `GsplatAsset` runtime representations and supports SOG SH bands 0-3. The same SOG loader can be used at runtime on supported platforms including Android.
+
 ### Fixed
 
 - Fixed a bug in `GsplatImporterEditor` where if the user selected one `.spz` file and then one `.ply` file, it would show `.ply` only options to the user. ([#43](https://github.com/wuyize25/gsplat-unity/pull/43) by [@amheuer](https://github.com/amheuer))
@@ -24,8 +26,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added runtime PLY loading from byte arrays. A new method `LoadFromPlyBytes(byte[])` is added to `GsplatAsset` and its derived classes. ([#34](https://github.com/wuyize25/gsplat-unity/pull/34) by [@TakashiYoshinaga](https://github.com/TakashiYoshinaga))
 
 - Added an `OpacityPruneThreshold` option to `GsplatImporter`. Splats with opacity below this threshold are culled at import time. Currently only supported for `.ply` import. `LoadFromPly` / `LoadFromPlyBytes` take an optional `opacityPruneThreshold` parameter, so runtime byte-array loading can prune as well. ([#36](https://github.com/wuyize25/gsplat-unity/pull/36) by [@TakashiYoshinaga](https://github.com/TakashiYoshinaga))
-
-- Added support for PlayCanvas SOG v2 ZIP bundle imports (`.sog`) in both Spark and Uncompressed compression modes. SOG import decodes `meta.json` plus lossless WebP property images through `unity.webp`/libwebp into the existing `GsplatAsset` runtime representations and supports SOG SH bands 0-3. The same SOG loader can be used at runtime on supported platforms including Android.
 
 ### Fixed
 

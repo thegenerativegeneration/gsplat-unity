@@ -429,7 +429,7 @@ namespace Gsplat
         /// Encode an array of 9 signed RGB SH1 coefficients (clamped to [-1,1]) into
         /// a pair of uint32 values, where each coefficient is stored as a sint7
         /// </summary>
-        protected static void PackSH1(float[] sh, Span<uint> output)
+        protected internal static void PackSH1(float[] sh, Span<uint> output)
         {
             output.Clear();
             for (var i = 0; i < 9; ++i)
@@ -473,7 +473,7 @@ namespace Gsplat
         /// Encode an array of 15 signed RGB SH2 coefficients (clamped to [-1,1]) into
         /// an array of 4 uint32 values, where each coefficient is stored as a sint8.
         /// </summary>
-        protected static void PackSH2(float[] sh, Span<uint> output)
+        protected internal static void PackSH2(float[] sh, Span<uint> output)
         {
             output[0] = PackSint8Bytes(sh[0], sh[1], sh[2], sh[3]);
             output[1] = PackSint8Bytes(sh[4], sh[5], sh[6], sh[7]);
@@ -487,7 +487,7 @@ namespace Gsplat
         /// Matches the SPZ writer's shRestBits=4 default precision so there is no
         /// information loss vs the source SPZ data.
         /// </summary>
-        protected static void PackSH4(float[] sh, Span<uint> output)
+        protected internal static void PackSH4(float[] sh, Span<uint> output)
         {
             output.Clear();
             for (var i = 0; i < 27; ++i)
@@ -512,7 +512,7 @@ namespace Gsplat
         /// Encode an array of 21 signed RGB SH3 coefficients (clamped to [-1,1]) into
         /// an array of 4 uint32 values, where each coefficient is stored as a sint6.
         /// </summary>
-        protected static void PackSH3(float[] sh, Span<uint> output)
+        protected internal static void PackSH3(float[] sh, Span<uint> output)
         {
             output.Clear();
             for (var i = 0; i < 21; ++i)

@@ -33,7 +33,7 @@ namespace Gsplat
         }
 
         public override void LoadFromPly(string plyPath, ProgressCallback progressCallback = null,
-            SourceCoordinates sourceCoordinates = SourceCoordinates.RUF)
+            SourceCoordinates sourceCoordinates = SourceCoordinates.RUF, float opacityPruneThreshold = 0f)
             => throw new NotSupportedException("GsplatAssetSog loads SOG files, not PLY.");
 
         public SpzPhaseTimings LoadFromSog(string sogPath,

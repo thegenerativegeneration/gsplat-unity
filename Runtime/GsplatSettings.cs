@@ -59,6 +59,15 @@ namespace Gsplat
                         EditorUtility.SetDirty(settings);
                         AssetDatabase.SaveAssets();
                     }
+
+                    // Unity drops SetDirty calls made by OnValidate while the asset loads, so save the fill here.
+                    settings.FillMissingStreamingDefaults();
+                    if (settings.m_streamingDefaultsUnsaved)
+                    {
+                        EditorUtility.SetDirty(settings);
+                        AssetDatabase.SaveAssetIfDirty(settings);
+                        settings.m_streamingDefaultsUnsaved = false;
+                    }
                 }
 #endif
 
@@ -69,6 +78,9 @@ namespace Gsplat
 
         public ComputeShader ComputeShader;
         public GsplatGlobalMaterial GlobalMaterial;
+        public ComputeShader StreamingCompute;
+        public Shader StreamingShader;
+        public GsplatStreamingParams Streaming = new();
 
         [Tooltip(
             "When enabled, 2+ active Gaussian splat renderers are merged into a single globally depth-sorted draw call.")]
@@ -107,8 +119,18 @@ namespace Gsplat
         [HideInInspector] [SerializeField] string m_version = "1.0.0";
 
 #if UNITY_EDITOR
+        [NonSerialized] bool m_streamingDefaultsUnsaved;
+#endif
+
+#if UNITY_EDITOR
         static ComputeShader DefaultComputeShader => AssetDatabase.LoadAssetAtPath<ComputeShader>(
             GsplatUtils.k_PackagePath + "Runtime/Shaders/Gsplat.compute");
+
+        static ComputeShader DefaultStreamingCompute => AssetDatabase.LoadAssetAtPath<ComputeShader>(
+            GsplatUtils.k_PackagePath + "Runtime/Shaders/Streaming/GsplatStreamed.compute");
+
+        static Shader DefaultStreamingShader => AssetDatabase.LoadAssetAtPath<Shader>(
+            GsplatUtils.k_PackagePath + "Runtime/Shaders/Streaming/GsplatStreamed.shader");
 
         static GsplatGlobalMaterial DefaultGlobalMaterial => AssetDatabase.LoadAssetAtPath<GsplatGlobalMaterial>(
             GsplatUtils.k_PackagePath + "Runtime/Materials/GsplatGlobal.asset");
@@ -134,6 +156,9 @@ namespace Gsplat
             ComputeShader = DefaultComputeShader;
             GlobalMaterial = DefaultGlobalMaterial;
             Materials = DefaultMaterials;
+            StreamingCompute = DefaultStreamingCompute;
+            StreamingShader = DefaultStreamingShader;
+            Streaming = new GsplatStreamingParams();
             SplatInstanceSize = 128;
             UploadBatchSize = 100000;
             MaxRenderOrder = 1;
@@ -145,6 +170,30 @@ namespace Gsplat
             m_prevComputeShader = null;
             m_prevSplatInstanceSize = 0;
             OnValidate();
+        }
+#endif
+
+#if UNITY_EDITOR
+        // Settings assets created before streaming existed lack these references.
+        void FillMissingStreamingDefaults()
+        {
+            bool changed = false;
+            // not ??=: it ignores Unity's fake null for destroyed or missing objects
+            if (!StreamingCompute && DefaultStreamingCompute)
+            {
+                StreamingCompute = DefaultStreamingCompute;
+                changed = true;
+            }
+
+            if (!StreamingShader && DefaultStreamingShader)
+            {
+                StreamingShader = DefaultStreamingShader;
+                changed = true;
+            }
+
+            if (!changed) return;
+            m_streamingDefaultsUnsaved = true;
+            EditorUtility.SetDirty(this);
         }
 #endif
 
@@ -192,6 +241,8 @@ namespace Gsplat
                 m_prevSplatInstanceSize = SplatInstanceSize;
             }
 #if UNITY_EDITOR
+            FillMissingStreamingDefaults();
+
             foreach (var mat in Materials)
             {
                 mat.Reset();

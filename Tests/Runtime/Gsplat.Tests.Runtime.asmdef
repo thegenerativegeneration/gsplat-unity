@@ -1,0 +1,9 @@
+{
+  "name": "Gsplat.Tests.Runtime",
+  "rootNamespace": "Gsplat.Tests",
+  "references": ["Gsplat", "Unity.Mathematics", "UnityEngine.TestRunner", "UnityEditor.TestRunner"],
+  "overrideReferences": true,
+  "precompiledReferences": ["nunit.framework.dll"],
+  "autoReferenced": false,
+  "defineConstraints": ["UNITY_INCLUDE_TESTS"]
+}

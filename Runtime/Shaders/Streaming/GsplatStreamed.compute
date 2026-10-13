@@ -1,0 +1,52 @@
+// Copyright (c) 2026 TheGenerativeGeneration
+// SPDX-License-Identifier: MIT
+
+#define GROUP_SIZE 1024
+
+#pragma kernel ExpandRanges
+#pragma kernel CalcDepthStreamed
+
+uint _ActiveCount;
+uint _RangeCount;
+StructuredBuffer<uint4> _Ranges; // landmark, pool start, count, exclusive prefix
+RWStructuredBuffer<uint> _ActiveIds;
+
+// One thread per active splat: find its range by binary search over the prefix sums.
+[numthreads(GROUP_SIZE, 1, 1)]
+void ExpandRanges(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _ActiveCount)
+        return;
+
+    uint lo = 0;
+    uint hi = _RangeCount - 1;
+    while (lo < hi)
+    {
+        uint mid = (lo + hi + 1) >> 1;
+        if (_Ranges[mid].w <= i) lo = mid;
+        else hi = mid - 1;
+    }
+    uint4 r = _Ranges[lo];
+    _ActiveIds[i] = (r.x << 24) | (r.y + (i - r.w));
+}
+
+float4x4 _MatrixV;
+StructuredBuffer<uint> _OrderBuffer;
+StructuredBuffer<float4> _Centers;
+StructuredBuffer<float4x4> _LandmarkTransforms;
+RWStructuredBuffer<float> _DepthBuffer;
+
+// Same key as CalcDepth/CalcDepthSpark: view-space z of the splat centre.
+[numthreads(GROUP_SIZE, 1, 1)]
+void CalcDepthStreamed(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    if (i >= _ActiveCount)
+        return;
+
+    uint packed = _OrderBuffer[i];
+    float3 c = _Centers[packed & 0x00FFFFFFu].xyz;
+    float4 world = mul(_LandmarkTransforms[packed >> 24u], float4(c, 1));
+    _DepthBuffer[i] = mul(_MatrixV, world).z;
+}

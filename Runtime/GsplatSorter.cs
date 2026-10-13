@@ -25,6 +25,13 @@ namespace Gsplat
         public byte SHBands { get; }
     }
 
+    // Lets streamed renderers sort in the same per-camera pass as GsplatRenderers.
+    internal interface IGsplatSortClient
+    {
+        bool HasWork(Camera camera);
+        void DispatchSort(CommandBuffer cmd, Camera camera, GsplatSortPass sortPass);
+    }
+
     public interface ISorterResource
     {
         public GraphicsBuffer OrderBuffer { get; }
@@ -69,6 +76,7 @@ namespace Gsplat
         readonly HashSet<Camera> m_camerasInjected = new();
         readonly List<IGsplat> m_activeGsplats = new();
         readonly HashSet<ulong> m_warnedUncompressed = new();
+        readonly List<IGsplatSortClient> m_clients = new();
         GsplatSortPass m_sortPass;
         public const string k_passName = "SortGsplats";
         const string k_depthPassName = "Gsplat.ComputeDepth";
@@ -93,7 +101,7 @@ namespace Gsplat
 
         public void RegisterGsplat(IGsplat gsplat)
         {
-            if (m_gsplats.Count == 0)
+            if (m_gsplats.Count == 0 && m_clients.Count == 0)
             {
                 if (!GraphicsSettings.currentRenderPipeline)
                     Camera.onPreCull += OnPreCullCamera;
@@ -113,8 +121,26 @@ namespace Gsplat
 
             m_globalRenderer.MarkGlobalBuffersDirty();
 
-            if (m_gsplats.Count != 0) return;
+            if (m_gsplats.Count != 0 || m_clients.Count != 0) return;
 
+            TearDownCameraHooks();
+        }
+
+        internal void RegisterClient(IGsplatSortClient client)
+        {
+            if (m_gsplats.Count == 0 && m_clients.Count == 0 && !GraphicsSettings.currentRenderPipeline)
+                Camera.onPreCull += OnPreCullCamera;
+            if (!m_clients.Contains(client)) m_clients.Add(client);
+        }
+
+        internal void UnregisterClient(IGsplatSortClient client)
+        {
+            if (m_clients.Remove(client) && m_gsplats.Count == 0 && m_clients.Count == 0)
+                TearDownCameraHooks();
+        }
+
+        void TearDownCameraHooks()
+        {
             if (m_camerasInjected != null)
             {
                 if (m_commandBuffer != null)
@@ -139,7 +165,10 @@ namespace Gsplat
             foreach (var gs in m_gsplats.Where(gs => gs is { isActiveAndEnabled: true, Valid: true }))
                 m_activeGsplats.Add(gs);
 
-            return m_activeGsplats.Count != 0;
+            if (m_activeGsplats.Count != 0) return true;
+            foreach (var c in m_clients)
+                if (c.HasWork(cam)) return true;
+            return false;
         }
 
         // Decides scene-wide whether the global merge can run this frame. 
@@ -233,6 +262,10 @@ namespace Gsplat
             // --- Global K-way merge ---
             if (GlobalRenderEnabled)
                 m_globalRenderer.DispatchMerge(cmd, m_activeGsplats);
+
+            foreach (var c in m_clients)
+                if (c.HasWork(camera))
+                    c.DispatchSort(cmd, camera, m_sortPass);
         }
 
         // Called by GsplatPlayerLoopHook once per frame, before Unity's PostLateUpdate phase

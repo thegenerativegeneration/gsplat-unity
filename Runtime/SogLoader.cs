@@ -4,7 +4,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.IO.Compression;
 using UnityEngine;
 
 namespace Gsplat
@@ -87,79 +86,45 @@ namespace Gsplat
 
         public static SogData Load(string path)
         {
-            try
-            {
-                using var fs = new FileStream(path, FileMode.Open, FileAccess.Read);
-                using var zip = new ZipArchive(fs, ZipArchiveMode.Read);
-                return LoadZip(zip, Path.GetFileName(path));
-            }
-            catch (InvalidDataException)
-            {
-                throw;
-            }
-            catch (NotSupportedException)
-            {
-                throw;
-            }
-            catch (Exception e)
-            {
-                throw new InvalidDataException($"SOG: failed to read '{Path.GetFileName(path)}' as a ZIP bundle: {e.Message}", e);
-            }
+            using ISogEntrySource source = path.EndsWith("meta.json", StringComparison.Ordinal)
+                ? new FolderSogSource(path)
+                : new ZipSogSource(path);
+            return Load(source);
         }
 
-        static SogData LoadZip(ZipArchive zip, string displayName)
+        internal static SogData Load(ISogEntrySource source)
         {
-            var entries = new Dictionary<string, ZipArchiveEntry>(StringComparer.Ordinal);
-            foreach (var entry in zip.Entries)
-            {
-                var name = entry.FullName.Replace('\\', '/');
-                if (!name.Contains("/") && !string.IsNullOrEmpty(name))
-                    entries[name] = entry;
-            }
+            if (!source.TryRead("meta.json", out var metaBytes))
+                throw new InvalidDataException($"SOG: '{source.DisplayName}' is missing root entry 'meta.json'.");
 
-            if (!entries.TryGetValue("meta.json", out var metaEntry))
-                throw new InvalidDataException($"SOG: '{displayName}' is missing root entry 'meta.json'.");
-
-            var metaJson = ReadEntryText(metaEntry);
-            var meta = JsonUtility.FromJson<SogMeta>(metaJson);
+            var meta = JsonUtility.FromJson<SogMeta>(System.Text.Encoding.UTF8.GetString(metaBytes));
             ValidateMeta(meta);
 
             var data = new SogData
             {
                 Meta = meta,
-                MeansL = ReadImage(entries, meta.Means.files[0]),
-                MeansU = ReadImage(entries, meta.Means.files[1]),
-                Scales = ReadImage(entries, meta.Scales.files[0]),
-                Quats = ReadImage(entries, meta.Quats.files[0]),
-                Sh0 = ReadImage(entries, meta.Sh0.files[0]),
+                MeansL = ReadImage(source, meta.Means.files[0]),
+                MeansU = ReadImage(source, meta.Means.files[1]),
+                Scales = ReadImage(source, meta.Scales.files[0]),
+                Quats = ReadImage(source, meta.Quats.files[0]),
+                Sh0 = ReadImage(source, meta.Sh0.files[0]),
             };
 
             if (data.HasShN)
             {
-                data.ShNCentroids = ReadImage(entries, meta.ShN.files[0]);
-                data.ShNLabels = ReadImage(entries, meta.ShN.files[1]);
+                data.ShNCentroids = ReadImage(source, meta.ShN.files[0]);
+                data.ShNLabels = ReadImage(source, meta.ShN.files[1]);
             }
 
             ValidateImages(data);
             return data;
         }
 
-        static string ReadEntryText(ZipArchiveEntry entry)
+        static SogImage ReadImage(ISogEntrySource source, string name)
         {
-            using var stream = entry.Open();
-            using var reader = new StreamReader(stream);
-            return reader.ReadToEnd();
-        }
-
-        static SogImage ReadImage(Dictionary<string, ZipArchiveEntry> entries, string name)
-        {
-            if (!entries.TryGetValue(name, out var entry))
-                throw new InvalidDataException($"SOG: missing image '{name}'.");
-
-            using var stream = entry.Open();
-            using var ms = new MemoryStream();
-            stream.CopyTo(ms);
-            return SogImageDecoder.Decode(ms.ToArray(), name);
+            if (!source.TryRead(name, out var bytes))
+                throw new InvalidDataException($"SOG: missing image '{name}' in '{source.DisplayName}'.");
+            return SogImageDecoder.Decode(bytes, name);
         }
 
         public static bool HasShN(SogMeta meta)
@@ -169,6 +134,7 @@ namespace Gsplat
                    (shN.Bands != 0 || shN.Count != 0 || shN.codebook != null || shN.files != null);
         }
 
+        // Older writers emit codebook[0] = null; JsonUtility reads it as 0, which is what PlayCanvas patches it to.
         static void ValidateMeta(SogMeta meta)
         {
             if (meta == null)

@@ -11,23 +11,26 @@ namespace Gsplat
 {
     internal static class MiniJson
     {
+        const int k_maxDepth = 128;
+
         public static object Parse(string json)
         {
             if (json == null) throw new InvalidDataException("JSON: null input");
             int i = 0;
-            var v = Value(json, ref i);
+            var v = Value(json, ref i, 0);
             Ws(json, ref i);
             if (i != json.Length) throw Error(json, i, "trailing characters");
             return v;
         }
 
-        static object Value(string s, ref int i)
+        static object Value(string s, ref int i, int depth)
         {
+            if (depth > k_maxDepth) throw Error(s, i, "nesting deeper than " + k_maxDepth);
             Ws(s, ref i);
             if (i >= s.Length) throw Error(s, i, "unexpected end");
             char c = s[i];
-            if (c == '{') return Obj(s, ref i);
-            if (c == '[') return Arr(s, ref i);
+            if (c == '{') return Obj(s, ref i, depth);
+            if (c == '[') return Arr(s, ref i, depth);
             if (c == '"') return Str(s, ref i);
             if (Lit(s, ref i, "true")) return true;
             if (Lit(s, ref i, "false")) return false;
@@ -35,7 +38,7 @@ namespace Gsplat
             return Num(s, ref i);
         }
 
-        static Dictionary<string, object> Obj(string s, ref int i)
+        static Dictionary<string, object> Obj(string s, ref int i, int depth)
         {
             var d = new Dictionary<string, object>(StringComparer.Ordinal);
             i++;
@@ -49,7 +52,7 @@ namespace Gsplat
                 Ws(s, ref i);
                 if (i >= s.Length || s[i] != ':') throw Error(s, i, "expected ':'");
                 i++;
-                d[key] = Value(s, ref i);
+                d[key] = Value(s, ref i, depth + 1);
                 Ws(s, ref i);
                 if (i >= s.Length) throw Error(s, i, "unexpected end");
                 if (s[i] == ',') { i++; continue; }
@@ -58,7 +61,7 @@ namespace Gsplat
             }
         }
 
-        static List<object> Arr(string s, ref int i)
+        static List<object> Arr(string s, ref int i, int depth)
         {
             var l = new List<object>();
             i++;
@@ -66,7 +69,7 @@ namespace Gsplat
             if (i < s.Length && s[i] == ']') { i++; return l; }
             while (true)
             {
-                l.Add(Value(s, ref i));
+                l.Add(Value(s, ref i, depth + 1));
                 Ws(s, ref i);
                 if (i >= s.Length) throw Error(s, i, "unexpected end");
                 if (s[i] == ',') { i++; continue; }
@@ -96,13 +99,28 @@ namespace Gsplat
                     case 't': sb.Append('\t'); break;
                     case 'u':
                         if (i + 4 > s.Length) throw Error(s, i, "bad \\u escape");
-                        sb.Append((char)int.Parse(s.Substring(i, 4), NumberStyles.HexNumber, CultureInfo.InvariantCulture));
+                        int code = 0;
+                        for (int k = 0; k < 4; k++)
+                        {
+                            int h = HexValue(s[i + k]);
+                            if (h < 0) throw Error(s, i + k, "bad \\u escape");
+                            code = code * 16 + h;
+                        }
+                        sb.Append((char)code);
                         i += 4;
                         break;
                     default: throw Error(s, i, "bad escape");
                 }
             }
             throw Error(s, i, "unterminated string");
+        }
+
+        static int HexValue(char c)
+        {
+            if (c >= '0' && c <= '9') return c - '0';
+            if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+            if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+            return -1;
         }
 
         static double Num(string s, ref int i)

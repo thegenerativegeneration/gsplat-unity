@@ -89,6 +89,47 @@ namespace Gsplat.Tests
             Assert.AreEqual("x\"yé", a[4]);
         }
 
+        static string WriteWithUnit(string name, string unitJson)
+        {
+            var path = WriteTemp(name, "{\"version\":1,\"lodLevels\":1,\"filenames\":[\"0_0/meta.json\"],\"tree\":{\"bound\":{\"min\":[0,0,0],\"max\":[1,1,1]},\"lods\":{\"0\":{\"file\":0,\"offset\":0,\"count\":1}}}}");
+            var unitDir = Path.Combine(Path.GetDirectoryName(path), "0_0");
+            Directory.CreateDirectory(unitDir);
+            File.WriteAllText(Path.Combine(unitDir, "meta.json"), unitJson);
+            return path;
+        }
+
+        [Test]
+        public void UnitWithoutCountIsInvalidData()
+        {
+            var path = WriteWithUnit("nocount", "{\"version\":2}");
+            var e = Assert.Throws<InvalidDataException>(() => SogLodMeta.Load(path, SourceCoordinates.RUF));
+            StringAssert.Contains("count", e.Message);
+            StringAssert.Contains("lod-meta.json", e.Message);
+        }
+
+        [Test]
+        public void MalformedUnitIsInvalidData()
+        {
+            var path = WriteWithUnit("badunit", "{\"count\":");
+            var e = Assert.Throws<InvalidDataException>(() => SogLodMeta.Load(path, SourceCoordinates.RUF));
+            StringAssert.Contains("lod-meta.json", e.Message);
+        }
+
+        [Test]
+        public void BadUnicodeEscapeIsInvalidData()
+        {
+            Assert.Throws<InvalidDataException>(() => MiniJson.Parse("\"\\uZZZZ\""));
+            Assert.Throws<InvalidDataException>(() => MiniJson.Parse("\"\\u 12 \""));
+        }
+
+        [Test]
+        public void DeepNestingIsInvalidDataNotACrash()
+        {
+            var json = new string('[', 10000) + new string(']', 10000);
+            var e = Assert.Throws<InvalidDataException>(() => MiniJson.Parse(json));
+            StringAssert.Contains("nesting", e.Message);
+        }
+
         static void CopyDir(string src, string dst)
         {
             Directory.CreateDirectory(dst);

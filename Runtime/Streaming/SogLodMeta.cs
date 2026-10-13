@@ -136,9 +136,20 @@ namespace Gsplat
             for (int f = 0; f < meta.Files.Length; f++)
             {
                 if (!File.Exists(meta.Files[f])) throw Bad(name, $"unit '{meta.Files[f]}' does not exist");
-                var unit = JsonUtility.FromJson<SogMeta>(File.ReadAllText(meta.Files[f]));
-                if (unit == null || unit.count < 0) throw Bad(name, $"unit '{meta.Files[f]}' has no count");
-                meta.FileCount[f] = unit.count;
+                object parsed;
+                try
+                {
+                    parsed = MiniJson.Parse(File.ReadAllText(meta.Files[f]));
+                }
+                catch (InvalidDataException e)
+                {
+                    throw Bad(name, $"unit '{meta.Files[f]}' is not valid JSON ({e.Message})");
+                }
+                if (!(parsed is Dictionary<string, object> unit)
+                    || !(unit.TryGetValue("count", out var co) && co is double count)
+                    || count < 0 || count > int.MaxValue || count != Math.Floor(count))
+                    throw Bad(name, $"unit '{meta.Files[f]}' has no valid count");
+                meta.FileCount[f] = (int)count;
             }
         }
 

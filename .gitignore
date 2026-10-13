@@ -100,3 +100,4 @@ InitTestScene*.unity*
 
 /.idea/
 Tests/Tools~/node_modules/
+Tests/Tools~/engine/

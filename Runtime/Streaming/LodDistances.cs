@@ -1,3 +1,4 @@
+// Copyright (c) 2011-2026 PlayCanvas Ltd.
 // Copyright (c) 2026 TheGenerativeGeneration
 // SPDX-License-Identifier: MIT
 // Port of GSplatOctreeInstance.evaluateNodeDistances and GSplatOctree._computeBoundsExcess,

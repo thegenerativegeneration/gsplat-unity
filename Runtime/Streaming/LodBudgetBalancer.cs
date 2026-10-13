@@ -1,3 +1,4 @@
+// Copyright (c) 2011-2026 PlayCanvas Ltd.
 // Copyright (c) 2026 TheGenerativeGeneration
 // SPDX-License-Identifier: MIT
 // Port of https://github.com/playcanvas/engine/blob/v2.23.2/src/scene/gsplat-unified/gsplat-budget-balancer.js

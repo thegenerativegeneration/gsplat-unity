@@ -20,7 +20,7 @@ namespace Gsplat.Tests
             return s_cases = (List<object>)root["cases"];
         }
 
-        static IEnumerable<int> CaseIndices() => Enumerable.Range(0, 18);
+        static IEnumerable<int> CaseIndices() => Enumerable.Range(0, Cases().Count);
 
         static float[] F(object o) => ((List<object>)o).Select(v => (float)(double)v).ToArray();
         static double[] D(object o) => ((List<object>)o).Select(v => (double)v).ToArray();

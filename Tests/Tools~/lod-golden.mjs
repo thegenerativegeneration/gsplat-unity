@@ -151,6 +151,8 @@ cams.forEach((c, i) => {
     cases.push(runCase(`gaps-cam${i}`, [inst(big)], c, 2e6, false, params));
     cases.push(runCase(`multi-cam${i}`, [inst(big), inst(other, 8, 2.5)], c, 1.5e6, false, params));
     cases.push(runCase(`multi-cam${i}-limit`, [inst(big), inst(other, 8, 2.5)], c, 1.5e6, true, params));
+    cases.push(runCase(`multi-cam${i}-limit-binding`, [inst(big), inst(other, 8, 2.5)], c, 4.7e5, true, params));
+    cases.push(runCase(`multi-cam${i}-limit-fits`, [inst(big), inst(other, 8, 2.5)], c, 1e9, true, params));
 });
 writeFileSync(join(fixtures, 'lod-golden.json'), JSON.stringify({ engine: 'v2.23.2', cases }));
 console.log(`${cases.length} cases written`);

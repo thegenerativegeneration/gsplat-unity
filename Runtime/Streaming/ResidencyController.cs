@@ -188,12 +188,12 @@ namespace Gsplat
                 }
         }
 
-        // The wanted level, moved coarser past failed files, then finer if no coarser level is usable;
-        // -1 when nothing can be drawn.
+        // The wanted level, moved coarser past failed files, then finer if no coarser level is usable.
+        // -1 when nothing can be drawn, including an empty level (the balancer's "draw nothing" signal).
         static int Effective(Landmark lm, int leaf, int lod)
         {
             var meta = lm.Meta;
-            if (lod < 0 || lod >= meta.LodLevels) return -1;
+            if (lod < 0 || lod >= meta.LodLevels || meta.Range(leaf, lod).Count == 0) return -1;
             for (int l = lod; l < meta.LodLevels; l++)
                 if (Usable(lm, leaf, l)) return l;
             for (int l = lod - 1; l >= 0; l--)

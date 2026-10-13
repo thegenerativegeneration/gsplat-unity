@@ -269,5 +269,43 @@ namespace Gsplat.Tests
             Assert.AreEqual(0, r.InFlight);
             Assert.AreEqual(0, r.ResidentCount);
         }
+
+        [Test]
+        public void EmptyLevelDrawsNothing()
+        {
+            var r = new ResidencyController();
+            r.AddLandmark(0, SharedMeta());
+            r.SetWanted(0, new[] { 2, 2 }, new[] { 1.0, 1.0 });
+            Assert.AreEqual(0, r.QueuedCount);
+            Assert.IsFalse(r.TryNextLoad(out _));
+            Assert.AreEqual(-1, r.DrawnLod(0, 0));
+            Assert.AreEqual(-1, r.DrawnLod(0, 1));
+        }
+
+        [Test]
+        public void SharedFileTakesTheBestPriorityOfTheLeavesWantingIt()
+        {
+            // leaf 0: level 0 = file 3, level 1 = file 0 (shared with leaf 1); leaf 2: level 0 = file 1
+            var m = new SogLodMeta
+            {
+                LodLevels = 2, LeafCount = 3, Files = new[] { "s", "c", "x", "a" }, FileLod = new[] { 1, 0, 0, 0 },
+                FileCount = new[] { 100, 100, 100, 100 }, Bounds = new float[18], Ranges = new LodRange[6]
+            };
+            m.Ranges[0] = new LodRange(3, 0, 100);
+            m.Ranges[1] = new LodRange(0, 0, 50);
+            m.Ranges[3] = new LodRange(0, 50, 50);
+            m.Ranges[4] = new LodRange(1, 0, 100);
+            var r = new ResidencyController(maxInFlight: 1);
+            r.AddLandmark(0, m);
+            r.SetWanted(0, new[] { 0, -1, -1 }, new[] { 1.0, 1.0, 1.0 });
+            LoadAll(r);
+            r.EvictIdle(new List<FileKey>());
+            Assert.AreEqual(0, r.DrawnLod(0, 0));
+
+            // file 0 is offered by leaf 0 (tier 1) and leaf 1 (tier 2, far); file 1 by leaf 2 (tier 2, level 0)
+            r.SetWanted(0, new[] { 1, 1, 0 }, new[] { 1.0, 900.0, 5.0 });
+            Assert.IsTrue(r.TryNextLoad(out var first));
+            Assert.AreEqual(new FileKey(0, 0), first, "tier 2 from leaf 1 wins over the tier 1 offer, and over file 1 (coarser)");
+        }
     }
 }

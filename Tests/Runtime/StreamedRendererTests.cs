@@ -4,6 +4,7 @@
 // The fixtures live inside the package (Tests/Fixtures~), found through the editor's PackageInfo.
 #if UNITY_EDITOR
 using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
 using NUnit.Framework;
@@ -16,6 +17,7 @@ namespace Gsplat.Tests
     {
         GameObject m_cam;
         GameObject m_splat;
+        readonly List<GameObject> m_splats = new();
 
         static string FixturePath(string relative)
         {
@@ -36,20 +38,30 @@ namespace Gsplat.Tests
         [TearDown]
         public void TearDown()
         {
-            Object.Destroy(m_splat);
+            // immediate: a renderer left until the end of the frame would join the next test's manager
+            foreach (var go in m_splats) Object.DestroyImmediate(go);
+            m_splats.Clear();
+            m_splat = null;
             Object.Destroy(m_cam);
         }
 
-        GsplatStreamedRenderer Make(string lodMeta)
+        GsplatStreamedRenderer Make(string lodMeta, Vector3 position = default)
         {
-            m_splat = new GameObject("streamed");
-            m_splat.SetActive(false);
-            var r = m_splat.AddComponent<GsplatStreamedRenderer>();
+            var go = new GameObject("streamed");
+            go.transform.position = position;
+            go.SetActive(false);
+            var r = go.AddComponent<GsplatStreamedRenderer>();
             r.LodMetaPath = lodMeta;
             r.SourceCoordinates = SourceCoordinates.RUF;
-            m_splat.SetActive(true);
+            go.SetActive(true);
+            m_splats.Add(go);
+            if (m_splat == null) m_splat = go;
             return r;
         }
+
+        // Nothing loading, and coarse files from the first fill have cooled down, so the pool holds exactly what is drawn.
+        static bool Settled(GsplatStreamingManager m) =>
+            m.QueuedFiles == 0 && m.InFlight == 0 && m.ActiveCount > 0 && m.PoolUsed == m.ActiveCount;
 
         // Wall-clock timeout: batchmode runs uncapped, so a frame count says little about decode time.
         static IEnumerator Until(System.Func<bool> condition, float maxSeconds = 30f)
@@ -117,6 +129,73 @@ namespace Gsplat.Tests
             for (int i = 0; i < 10; i++) yield return null;
             m_splat.SetActive(true);
             yield return Until(() => r.Ready && GsplatStreamingManager.Instance.ActiveCount > 0);
+        }
+
+        [UnityTest]
+        public IEnumerator MissingStreamingShaderLogsOnceAndSetsError()
+        {
+            var settings = GsplatSettings.Instance;
+            var saved = settings.StreamingShader;
+            settings.StreamingShader = null; // in memory only; the asset is never marked dirty
+            try
+            {
+                LogAssert.Expect(LogType.Error, new Regex("missing StreamingShader"));
+                var r = Make(FixturePath("lod/lod-meta.json"));
+                yield return Until(() => r.Error != null);
+                for (int i = 0; i < 30; i++) yield return null;
+                LogAssert.NoUnexpectedReceived();
+                StringAssert.Contains("StreamingShader", r.Error);
+                Assert.IsFalse(r.Ready);
+            }
+            finally
+            {
+                settings.StreamingShader = saved;
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator RemovingOneOfTwoLandmarksReleasesItsSlots()
+        {
+            var a = Make(FixturePath("lod/lod-meta.json"));
+            var b = Make(FixturePath("lod/lod-meta.json"), new Vector3(24, 0, 0));
+            yield return Until(() => a.Ready && b.Ready);
+            var m = GsplatStreamingManager.Instance;
+            yield return Until(() => Settled(m));
+            int twoActive = m.ActiveCount, twoPool = m.PoolUsed;
+
+            b.gameObject.SetActive(false);
+            Assert.AreSame(m, GsplatStreamingManager.Instance, "one renderer left: the manager survives");
+            yield return Until(() => Settled(m) && m.ActiveCount < twoActive);
+            TestContext.WriteLine($"two trees: active {twoActive}, pool {twoPool}; one tree: active {m.ActiveCount}, pool {m.PoolUsed}");
+            Assert.That(m.ActiveCount, Is.InRange(twoActive * 0.4, twoActive * 0.6));
+            Assert.That(m.PoolUsed, Is.InRange(twoPool * 0.4, twoPool * 0.6));
+
+            b.gameObject.SetActive(true); // takes the freed landmark id
+            yield return Until(() => b.Ready);
+            yield return Until(() => Settled(m) && m.ActiveCount == twoActive);
+            Assert.AreSame(m, GsplatStreamingManager.Instance);
+            Assert.AreEqual(twoPool, m.PoolUsed);
+            LogAssert.NoUnexpectedReceived();
+        }
+
+        [UnityTest]
+        public IEnumerator RemovingALandmarkWhileItDecodesDropsTheResults()
+        {
+            var a = Make(FixturePath("lod/lod-meta.json"));
+            yield return Until(() => a.Ready);
+            var m = GsplatStreamingManager.Instance;
+            yield return Until(() => Settled(m));
+            int oneActive = m.ActiveCount, onePool = m.PoolUsed, stale = m.StaleDecodeResults;
+
+            var b = Make(FixturePath("lod/lod-meta.json"), new Vector3(24, 0, 0));
+            // a is fully loaded, so anything in flight now is b decoding
+            yield return Until(() => b.Ready && m.InFlight > 0);
+            b.gameObject.SetActive(false);
+            yield return Until(() => m.StaleDecodeResults > stale);
+            yield return Until(() => Settled(m));
+            Assert.AreEqual(oneActive, m.ActiveCount);
+            Assert.AreEqual(onePool, m.PoolUsed);
+            LogAssert.NoUnexpectedReceived();
         }
 
         [UnityTest]

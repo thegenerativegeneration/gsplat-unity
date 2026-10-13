@@ -76,6 +76,7 @@ namespace Gsplat
         float m_lastFov;
         bool m_selectionDirty = true;
         bool m_activeDirty;
+        bool m_settingsErrorLogged;
 
         static GsplatStreamingParams P => GsplatSettings.Instance.Streaming;
 
@@ -125,6 +126,7 @@ namespace Gsplat
         internal static void TickIfActive() => Instance?.Tick();
 
         internal SogLodMeta MetaOf(GsplatStreamedRenderer r) => m_byRenderer.TryGetValue(r, out var lm) ? lm.Meta : null;
+        internal int StaleDecodeResults => m_loader?.StaleResults ?? 0;
 
         void BeginLoad(GsplatStreamedRenderer r)
         {
@@ -197,8 +199,12 @@ namespace Gsplat
         void Tick()
         {
             var settings = GsplatSettings.Instance;
-            if (!settings.StreamingCompute || !settings.StreamingShader || !settings.Valid
-                || !settings.GlobalMaterial || !settings.GlobalMaterial.CopyBufferShader) return;
+            string missing = MissingSettings(settings);
+            if (missing != null)
+            {
+                ReportSettingsError(missing);
+                return;
+            }
             EnsureGpu(settings);
             m_frame++;
             FinishMetaLoads();
@@ -219,6 +225,35 @@ namespace Gsplat
             if (m_residency.ConsumeDrawnChanged() || m_activeDirty) RebuildActive();
             UpdateTransformsAndParams();
             Draw();
+        }
+
+        static string MissingSettings(GsplatSettings s)
+        {
+            if (!s) return "the GsplatSettings asset";
+            if (s.StreamingCompute && s.StreamingShader && s.GlobalMaterial && s.GlobalMaterial.CopyBufferShader && s.Valid)
+                return null;
+            var missing = new List<string>();
+            if (!s.StreamingCompute) missing.Add(nameof(GsplatSettings.StreamingCompute));
+            if (!s.StreamingShader) missing.Add(nameof(GsplatSettings.StreamingShader));
+            if (!s.GlobalMaterial) missing.Add(nameof(GsplatSettings.GlobalMaterial));
+            else if (!s.GlobalMaterial.CopyBufferShader) missing.Add("GlobalMaterial.CopyBufferShader");
+            if (!s.Valid) missing.Add("Materials / SplatInstanceSize (settings not valid)");
+            return string.Join(", ", missing);
+        }
+
+        // Without this nothing loads and nothing would say why: one log, and every renderer carries the error.
+        void ReportSettingsError(string missing)
+        {
+            string error = $"GsplatSettings is missing {missing}; streamed splats cannot load";
+            if (!m_settingsErrorLogged)
+            {
+                m_settingsErrorLogged = true;
+                Debug.LogError($"[Gsplat] {error}.");
+            }
+            foreach (var r in m_pendingMeta)
+                if (r && r.Error == null) r.Error = error;
+            foreach (var r in m_byRenderer.Keys)
+                if (r && r.Error == null) r.Error = error;
         }
 
         bool ShouldSelect(Camera cam)

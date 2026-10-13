@@ -42,6 +42,9 @@ namespace Gsplat
             m_pool = pool;
         }
 
+        // Decode results dropped because their file was released (or its landmark id reused) meanwhile.
+        public int StaleResults { get; private set; }
+
         public bool TryGetSlot(FileKey key, out int slot) => m_slots.TryGetValue(key, out slot);
 
         public void StartDecodes()
@@ -78,6 +81,7 @@ namespace Gsplat
                 if (!m_decoding.TryGetValue(d.Key, out var cts) || cts != d.Source)
                 {
                     d.Source.Dispose();
+                    StaleResults++;
                     continue;
                 }
                 m_decoding.Remove(d.Key);

@@ -69,6 +69,7 @@ namespace Gsplat
         static void Update()
         {
             GsplatSorter.Instance.Update();
+            GsplatStreamingManager.TickIfActive();
         }
     }
 }

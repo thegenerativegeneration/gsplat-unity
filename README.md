@@ -97,6 +97,21 @@ The `Brightness` option allows post-hoc scaling of the Gsplat Asset's brightness
 
 The `Async Upload` option enables streaming data from RAM to VRAM, which can help reduce lags when loading the `GsplatRenderer` or setting its enable property to true. When enabled, the renderer can optionally draw before upload completes (`Render Before Upload Complete`), which will render the asset with whatever data has been uploaded so far.
 
+### Streamed LOD (SOG)
+
+1. Make a LOD tree with PlayCanvas splat-transform (≥ 3.10.1):
+   `splat-transform in.ply -d 25% lvl1.ply` (one run per coarser level), then
+   `splat-transform in.ply -l 0 lvl1.ply -l 1 lvl2.ply -l 2 out/lod-meta.json`
+2. Put `out/` under `Assets/StreamingAssets/` (or anywhere on disk).
+3. Add `Gsplat Streamed Renderer` to a GameObject; set `Lod Meta Path` (relative to StreamingAssets or absolute) and
+   `Source Coordinates`.
+4. Budget and LOD distances: `Project Settings > Gsplat > Streaming`.
+5. Optional: set `GsplatStreamingManager.LodCamera` when the LOD camera is not `Camera.main`.
+
+All streamed renderers share one splat budget and one sorted draw. They are not depth-merged with ordinary
+`Gsplat Renderer`s. Requires compute shaders. The draw is submitted just before `PostLateUpdate`: a manual
+`Camera.Render()` from `Update`, `LateUpdate` or a coroutine misses it.
+
 ## Additional Documentation
 
 - [Implementation Details](./Documentation~/Implementation%20Details.md)

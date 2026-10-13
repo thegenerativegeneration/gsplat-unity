@@ -50,6 +50,12 @@ namespace Gsplat.Editor
             }
 
             EditorGUILayout.Space();
+            EditorGUILayout.LabelField("Streaming", EditorStyles.boldLabel);
+            EditorGUILayout.PropertyField(m_gsplatSettings.FindProperty(nameof(GsplatSettings.StreamingCompute)));
+            EditorGUILayout.PropertyField(m_gsplatSettings.FindProperty(nameof(GsplatSettings.StreamingShader)));
+            EditorGUILayout.PropertyField(m_gsplatSettings.FindProperty(nameof(GsplatSettings.Streaming)), true);
+
+            EditorGUILayout.Space();
             GUILayout.BeginHorizontal();
             GUILayout.FlexibleSpace();
             if (GUILayout.Button("Reset", GUILayout.Width(60)))

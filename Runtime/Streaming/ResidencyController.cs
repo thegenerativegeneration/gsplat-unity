@@ -151,6 +151,14 @@ namespace Gsplat
             m_queueDirty = true;
         }
 
+        public void MarkCancelled(FileKey key)
+        {
+            if (!m_landmarks.TryGetValue(key.Landmark, out var lm) || !lm.Loading[key.File]) return;
+            lm.Loading[key.File] = false;
+            InFlight--;
+            m_queueDirty = true;
+        }
+
         public void Tick(List<FileKey> unloads)
         {
             foreach (var (id, lm) in m_landmarks)
@@ -180,16 +188,29 @@ namespace Gsplat
                 }
         }
 
-        // The wanted level, moved coarser past failed files; -1 when nothing can be drawn.
+        // The wanted level, moved coarser past failed files, then finer if no coarser level is usable;
+        // -1 when nothing can be drawn.
         static int Effective(Landmark lm, int leaf, int lod)
         {
             var meta = lm.Meta;
             if (lod < 0 || lod >= meta.LodLevels) return -1;
             for (int l = lod; l < meta.LodLevels; l++)
-            {
-                var r = meta.Range(leaf, l);
-                if (r.Count > 0 && !lm.Failed[r.File]) return l;
-            }
+                if (Usable(lm, leaf, l)) return l;
+            for (int l = lod - 1; l >= 0; l--)
+                if (Usable(lm, leaf, l)) return l;
+            return -1;
+        }
+
+        static bool Usable(Landmark lm, int leaf, int lod)
+        {
+            var r = lm.Meta.Range(leaf, lod);
+            return r.Count > 0 && !lm.Failed[r.File];
+        }
+
+        static int CoarsestUsable(Landmark lm, int leaf)
+        {
+            for (int l = lm.Meta.LodLevels - 1; l >= 0; l--)
+                if (Usable(lm, leaf, l)) return l;
             return -1;
         }
 
@@ -246,16 +267,30 @@ namespace Gsplat
             {
                 for (int leaf = 0; leaf < lm.Meta.LeafCount; leaf++)
                 {
+                    if (lm.Wanted[leaf] < 0) continue;
+                    if (lm.Drawn[leaf] < 0)
+                    {
+                        // Underfill: a leaf drawing nothing also loads its coarsest level first.
+                        int c = CoarsestUsable(lm, leaf);
+                        int cf = FileOf(lm, leaf, c);
+                        if (cf >= 0 && !lm.Resident[cf] && !lm.Loading[cf] && !lm.Failed[cf])
+                            Offer(best, id, cf, (2, c, lm.DistanceSq[leaf]));
+                    }
                     int f = FileOf(lm, leaf, lm.Wanted[leaf]);
                     if (f < 0 || lm.Resident[f] || lm.Loading[f] || lm.Failed[f]) continue;
-                    var key = new FileKey(id, f);
-                    var p = (tier: lm.Drawn[leaf] < 0 ? 2 : 1, lod: lm.Wanted[leaf], dist: lm.DistanceSq[leaf]);
-                    if (!best.TryGetValue(key, out var have) || Better(p, have)) best[key] = p;
+                    Offer(best, id, f, (lm.Drawn[leaf] < 0 ? 2 : 1, lm.Wanted[leaf], lm.DistanceSq[leaf]));
                 }
             }
             foreach (var (k, p) in best) m_queue.Add((k, p.tier, p.lod, p.dist));
             m_queue.Sort((a, b) => Better((a.tier, a.lod, a.dist), (b.tier, b.lod, b.dist)) ? -1
                 : Better((b.tier, b.lod, b.dist), (a.tier, a.lod, a.dist)) ? 1 : 0);
+        }
+
+        static void Offer(Dictionary<FileKey, (int tier, int lod, double dist)> best, int landmark, int file,
+            (int tier, int lod, double dist) p)
+        {
+            var key = new FileKey(landmark, file);
+            if (!best.TryGetValue(key, out var have) || Better(p, have)) best[key] = p;
         }
 
         static bool Better((int tier, int lod, double dist) a, (int tier, int lod, double dist) b)

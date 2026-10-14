@@ -39,8 +39,9 @@ The streamed LOD system ports LOD selection, budget balancing, distance evaluati
 lod-meta.json layout from PlayCanvas engine v2.23.2 (`src/scene/gsplat-unified/`) and splat-transform v3.10.1.
 
 - Project: https://github.com/playcanvas/engine, https://github.com/playcanvas/splat-transform
-- Ported files: `Runtime/Streaming/LodTable.cs`, `Runtime/Streaming/LodBudgetBalancer.cs`,
-  `Runtime/Streaming/LodDistances.cs`, `Runtime/Streaming/SogLodMeta.cs`, `Runtime/Streaming/ResidencyController.cs`,
+- Ported (keep the PlayCanvas copyright line): `Runtime/Streaming/LodTable.cs`,
+  `Runtime/Streaming/LodBudgetBalancer.cs`, `Runtime/Streaming/LodDistances.cs`
+- Follow the design of: `Runtime/Streaming/SogLodMeta.cs`, `Runtime/Streaming/ResidencyController.cs`,
   `Runtime/Streaming/GsplatStreamingManager.cs`
 - License: MIT
 

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 TheGenerativeGeneration
+// SPDX-License-Identifier: MIT
+
 // Generates the committed test fixtures. Run with Node 22: `npm ci && node make-fixtures.mjs`.
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -9,7 +12,7 @@ const out = join(here, '..', 'Fixtures~');
 const cli = join(here, 'node_modules', '.bin', 'splat-transform');
 const SH_REST = 45;
 
-// mulberry32: deterministic, so the fixtures are reproducible byte for byte
+// mulberry32: deterministic, so synth.ply is reproducible byte for byte (the SOG and WebP outputs depend on the splat-transform build)
 function rng(seed) {
     return () => {
         seed |= 0; seed = (seed + 0x6D2B79F5) | 0;

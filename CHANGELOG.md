@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added support for PlayCanvas SOG v2 ZIP bundle imports (`.sog`) in both Spark and Uncompressed compression modes. SOG import decodes `meta.json` plus lossless WebP property images through `unity.webp`/libwebp into the existing `GsplatAsset` runtime representations and supports SOG SH bands 0-3. The same SOG loader can be used at runtime on supported platforms including Android.
 
+- Added loading of unbundled SOG folders (`meta.json` plus WebP images in a directory) through `SogLoader`, used by streamed LOD.
+
+- Added streamed LOD for large scenes: `Gsplat Streamed Renderer` loads a PlayCanvas `lod-meta.json` tree (splat-transform 3.10.1, version 1), selects levels per camera under a shared splat budget, decodes SOG files on worker threads and draws all streamed renderers in one sorted draw. Settings are under `Project Settings > Gsplat > Streaming`.
+
 ### Fixed
 
 - Fixed a bug in `GsplatImporterEditor` where if the user selected one `.spz` file and then one `.ply` file, it would show `.ply` only options to the user. ([#43](https://github.com/wuyize25/gsplat-unity/pull/43) by [@amheuer](https://github.com/amheuer))

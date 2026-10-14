@@ -84,13 +84,19 @@ namespace Gsplat
             var (c, p, s1, s2, s3) = (Centers, Packed, Sh1, Sh2, Sh3);
             int old = m_allocator.Capacity;
             Create(capacity);
-            Copy4(c, Centers, old);
-            Copy4(p, Packed, old);
-            if (s1 != null) Copy2(s1, Sh1, old);
-            if (s2 != null) Copy4(s2, Sh2, old);
-            if (s3 != null) Copy4(s3, Sh3, old);
-            WaitForCopies();
-            c.Dispose(); p.Dispose(); s1?.Dispose(); s2?.Dispose(); s3?.Dispose();
+            try
+            {
+                Copy4(c, Centers, old);
+                Copy4(p, Packed, old);
+                if (s1 != null) Copy2(s1, Sh1, old);
+                if (s2 != null) Copy4(s2, Sh2, old);
+                if (s3 != null) Copy4(s3, Sh3, old);
+                WaitForCopies();
+            }
+            finally
+            {
+                c.Dispose(); p.Dispose(); s1?.Dispose(); s2?.Dispose(); s3?.Dispose();
+            }
             m_allocator.Grow(capacity);
             Grown?.Invoke();
         }

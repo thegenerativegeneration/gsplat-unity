@@ -45,7 +45,7 @@ namespace Gsplat
             double distanceScale = LodDistances.FovScale(cam.fieldOfView, cam.aspect) * scale;
             LodDistances.Evaluate(Meta.Bounds, Excess, p.DistanceShrink, camLocal, fwdLocal, distanceScale,
                 p.BehindPenalty, Lod.DistanceSq);
-            Lod.BaseDistance = p.LodBaseDistance;
+            Lod.BaseDistance = p.EffectiveBaseDistance;
             Lod.Multiplier = Mathf.Max(1.2f, p.LodMultiplier);
         }
     }

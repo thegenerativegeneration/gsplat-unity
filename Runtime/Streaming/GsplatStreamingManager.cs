@@ -57,6 +57,7 @@ namespace Gsplat
         readonly ConcurrentQueue<(GsplatStreamedRenderer r, SogLodMeta meta, byte bands, Exception e)> m_metaResults = new();
         readonly ResidencyController m_residency;
         readonly LodBudgetBalancer m_balancer = new();
+        bool m_paramsWarned;
         readonly List<FileKey> m_unloads = new();
         readonly List<LodInstance> m_instances = new();
         readonly List<uint4> m_ranges = new();
@@ -256,6 +257,13 @@ namespace Gsplat
                 if (r && r.Error == null) r.Error = error;
         }
 
+        void WarnOnInvalidParams()
+        {
+            if (m_paramsWarned || P.LodBaseDistance >= GsplatStreamingParams.MinBaseDistance) return;
+            m_paramsWarned = true;
+            Debug.LogWarning($"[Gsplat] Streaming LodBaseDistance {P.LodBaseDistance} is below {GsplatStreamingParams.MinBaseDistance}; using {GsplatStreamingParams.MinBaseDistance}.");
+        }
+
         bool ShouldSelect(Camera cam)
         {
             if (m_byRenderer.Count == 0) return false;
@@ -285,7 +293,8 @@ namespace Gsplat
                 lm.EvaluateDistances(cam, P);
                 m_instances.Add(lm.Lod);
             }
-            m_balancer.Balance(m_instances, P.SplatBudget, P.LimitMode);
+            WarnOnInvalidParams();
+            m_balancer.Balance(m_instances, P.EffectiveBudget, P.LimitMode);
             foreach (var lm in m_byRenderer.Values)
                 m_residency.SetWanted(lm.Id, lm.Lod.OptimalLod, lm.Lod.DistanceSq);
         }

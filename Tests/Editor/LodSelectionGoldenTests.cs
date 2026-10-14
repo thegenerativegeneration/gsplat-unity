@@ -79,5 +79,30 @@ namespace Gsplat.Tests
             Assert.AreEqual(0, inst.OptimalLod[0]);
             Assert.That(inst.OptimalLod[1], Is.InRange(0, 1));
         }
+
+        [TestCase(0)]
+        [TestCase(-5)]
+        public void NonPositiveBudgetMeansNoBudget(int budget)
+        {
+            var settings = new GsplatStreamingParams { SplatBudget = budget };
+            Assert.AreEqual(double.PositiveInfinity, settings.EffectiveBudget);
+            var inst = new LodInstance
+            {
+                Table = new LodTable(new[] { 100, 10, 50, 5 }, 2, 2, 0, 1), DistanceSq = new double[] { 1e6, 1e6 },
+                OptimalLod = new int[2]
+            };
+            new LodBudgetBalancer().Balance(new[] { inst }, settings.EffectiveBudget, false);
+            CollectionAssert.AreEqual(new[] { 0, 0 }, inst.OptimalLod, "finest level everywhere");
+        }
+
+        [TestCase(0f)]
+        [TestCase(-3f)]
+        [TestCase(float.NaN)]
+        public void InvalidBaseDistanceIsClamped(float value)
+        {
+            var settings = new GsplatStreamingParams { LodBaseDistance = value };
+            Assert.AreEqual(GsplatStreamingParams.MinBaseDistance, settings.EffectiveBaseDistance);
+            Assert.AreEqual(5f, new GsplatStreamingParams().EffectiveBaseDistance);
+        }
     }
 }

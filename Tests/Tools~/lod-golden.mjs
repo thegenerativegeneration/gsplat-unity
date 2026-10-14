@@ -1,3 +1,6 @@
+// Copyright (c) 2026 TheGenerativeGeneration
+// SPDX-License-Identifier: MIT
+
 // Writes Fixtures~/lod-golden.json by running PlayCanvas engine v2.23.2's LOD table and budget balancer.
 // Setup: git clone --depth 1 --branch v2.23.2 --filter=blob:none --sparse https://github.com/playcanvas/engine.git engine
 //        (cd engine && git sparse-checkout set src/scene/gsplat-unified)

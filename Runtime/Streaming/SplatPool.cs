@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 using System;
+using Unity.Mathematics;
 using UnityEngine;
 
 namespace Gsplat
@@ -88,9 +89,22 @@ namespace Gsplat
             if (s1 != null) Copy2(s1, Sh1, old);
             if (s2 != null) Copy4(s2, Sh2, old);
             if (s3 != null) Copy4(s3, Sh3, old);
+            WaitForCopies();
             c.Dispose(); p.Dispose(); s1?.Dispose(); s2?.Dispose(); s3?.Dispose();
             m_allocator.Grow(capacity);
             Grown?.Invoke();
+        }
+
+        // On Metal a SetData that follows a copy dispatch the GPU has not run yet can drop the copied contents
+        // (of two uploads in a row, the second buffer loses its copy). Uploads follow growth in the same frame, so
+        // stall until the copies are done; one-element reads suffice, and growth is rare and logged.
+        void WaitForCopies()
+        {
+            Centers.GetData(new Vector4[1], 0, 0, 1);
+            Packed.GetData(new uint4[1], 0, 0, 1);
+            Sh1?.GetData(new uint[2], 0, 0, 2);
+            Sh2?.GetData(new uint[4], 0, 0, 4);
+            Sh3?.GetData(new uint[4], 0, 0, 4);
         }
 
         void Copy4(GraphicsBuffer src, GraphicsBuffer dst, int count) => Copy("CopyUint4", k_srcUint4, k_dstUint4, src, dst, count);

@@ -52,32 +52,65 @@ namespace Gsplat.Tests
             Assert.AreEqual(want1, got[1], 1e-4f);
         }
 
-        [Test]
-        public void PoolGrowthKeepsUploadedData()
+        static DecodedChunk NumberedChunk(int count, uint first)
         {
-            var copy = GsplatSettings.Instance.GlobalMaterial.CopyBufferShader;
-            using var pool = new SplatPool(4, 1, copy);
             var chunk = new DecodedChunk
             {
-                Count = 3, ShBands = 1,
-                Centers = new[] { new Vector3(1, 2, 3), new Vector3(4, 5, 6), new Vector3(7, 8, 9) },
-                Packed = new[] { new uint4(1, 2, 3, 4), new uint4(5, 6, 7, 8), new uint4(9, 10, 11, 12) },
-                Sh1 = new uint[] { 1, 2, 3, 4, 5, 6 }
+                Count = count, ShBands = 1,
+                Centers = new Vector3[count], Packed = new uint4[count], Sh1 = new uint[count * 2],
             };
-            Assert.IsTrue(pool.TryAllocate(3, out int a));
-            pool.Upload(chunk, 0, a, 3);
-            Assert.IsFalse(pool.TryAllocate(3, out _));
+            for (int i = 0; i < count; i++)
+            {
+                uint v = first + (uint)i;
+                chunk.Centers[i] = new Vector3(v, v + 1, v + 2);
+                chunk.Packed[i] = new uint4(v, v * 3, 7, 9);
+                chunk.Sh1[i * 2] = v;
+                chunk.Sh1[i * 2 + 1] = v + 5;
+            }
+            return chunk;
+        }
+
+        static void AssertPoolHolds(SplatPool pool, DecodedChunk chunk, int start, string what)
+        {
+            int n = chunk.Count;
+            var centers = new Vector4[n];
+            var packed = new uint4[n];
+            var sh1 = new uint[n * 2];
+            pool.Centers.GetData(centers, 0, start, n);
+            pool.Packed.GetData(packed, 0, start, n);
+            pool.Sh1.GetData(sh1, 0, start * 2, n * 2);
+            int badCenters = 0, badPacked = 0, badSh1 = 0;
+            for (int i = 0; i < n; i++)
+            {
+                var c = chunk.Centers[i];
+                if (centers[i] != new Vector4(c.x, c.y, c.z, 0)) badCenters++;
+                if (!packed[i].Equals(chunk.Packed[i])) badPacked++;
+                if (sh1[i * 2] != chunk.Sh1[i * 2] || sh1[i * 2 + 1] != chunk.Sh1[i * 2 + 1]) badSh1++;
+            }
+            Assert.AreEqual((0, 0, 0), (badCenters, badPacked, badSh1), $"{what}: wrong (centres, packed, sh1) of {n}");
+        }
+
+        // The loader grows the pool and uploads the next unit in the same frame, before the GPU has run the growth
+        // copy; the copied splats must survive those uploads.
+        [Test]
+        public void PoolGrowthKeepsUploadedData([Values(3, 100_000)] int count)
+        {
+            var copy = GsplatSettings.Instance.GlobalMaterial.CopyBufferShader;
+            using var pool = new SplatPool(count + 1, 1, copy);
+            var first = NumberedChunk(count, 1);
+            var second = NumberedChunk(count, 10_000_000);
+            Assert.IsTrue(pool.TryAllocate(count, out int a));
+            pool.Upload(first, 0, a, count);
+            pool.Centers.GetData(new Vector4[1]); // the first unit was uploaded frames ago
+            Assert.IsFalse(pool.TryAllocate(count, out _));
             LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex("pool grows"));
-            Assert.IsTrue(pool.TryGrowFor(3));
-            Assert.IsTrue(pool.TryAllocate(3, out int b));
-            Assert.AreEqual(3, b);
-            Assert.Greater(pool.Capacity, 4);
-            var centers = new Vector4[3];
-            pool.Centers.GetData(centers, 0, a, 3);
-            Assert.AreEqual(new Vector4(4, 5, 6, 0), centers[1]);
-            var sh = new uint[6];
-            pool.Sh1.GetData(sh, 0, a * 2, 6);
-            CollectionAssert.AreEqual(chunk.Sh1, sh);
+            Assert.IsTrue(pool.TryGrowFor(count));
+            Assert.Greater(pool.Capacity, count + 1);
+            Assert.IsTrue(pool.TryAllocate(count, out int b));
+            Assert.AreEqual(count, b);
+            pool.Upload(second, 0, b, count);
+            AssertPoolHolds(pool, first, a, "splats uploaded before the growth");
+            AssertPoolHolds(pool, second, b, "splats uploaded after the growth");
         }
     }
 }
